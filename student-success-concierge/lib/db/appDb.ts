@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import initSqlJs, { Database } from 'sql.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -10,22 +10,59 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// Create database connection
-const db = new Database(APP_DB_PATH);
+let db: Database | null = null;
+let SQL: any = null;
 
-// Enable foreign keys
-db.pragma('foreign_keys = ON');
+async function initDB() {
+  if (db) return db;
+
+  // Initialize SQL.js
+  if (!SQL) {
+    SQL = await initSqlJs({
+      locateFile: (file) => path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', file),
+    });
+  }
+
+  // Load existing database or create new one
+  if (fs.existsSync(APP_DB_PATH)) {
+    const buffer = fs.readFileSync(APP_DB_PATH);
+    db = new SQL.Database(buffer);
+  } else {
+    db = new SQL.Database();
+  }
+
+  return db;
+}
+
+// Save database to disk
+export function saveDb() {
+  if (db) {
+    const data = db.export();
+    fs.writeFileSync(APP_DB_PATH, data);
+  }
+}
+
+// Get database instance
+export async function getDb(): Promise<Database> {
+  return await initDB();
+}
 
 // ===== SCHEMA =====
 
 export const APP_DB_SCHEMA = `
--- Students table
+-- Students table (identity via handle)
 CREATE TABLE IF NOT EXISTS students (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  email TEXT NOT NULL UNIQUE,
-  phone TEXT,
+  handle TEXT NOT NULL UNIQUE,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Cohorts table
+CREATE TABLE IF NOT EXISTS cohorts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  active INTEGER DEFAULT 1
 );
 
 -- Appointments table
@@ -55,11 +92,14 @@ CREATE TABLE IF NOT EXISTS tickets (
 CREATE TABLE IF NOT EXISTS conversations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   student_id INTEGER NOT NULL,
+  cohort_id INTEGER,
   channel TEXT NOT NULL,
   started_at TEXT DEFAULT CURRENT_TIMESTAMP,
   ended_at TEXT,
   status TEXT DEFAULT 'active',
-  FOREIGN KEY (student_id) REFERENCES students(id)
+  archived INTEGER DEFAULT 0,
+  FOREIGN KEY (student_id) REFERENCES students(id),
+  FOREIGN KEY (cohort_id) REFERENCES cohorts(id)
 );
 
 -- Messages table
@@ -113,22 +153,26 @@ CREATE TABLE IF NOT EXISTS eval_results (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   test_case_id INTEGER NOT NULL,
   conversation_id INTEGER NOT NULL,
+  cohort_id INTEGER,
   code_eval_result TEXT NOT NULL,
   code_eval_details TEXT NOT NULL,
   llm_judge_result TEXT,
   llm_judge_reasoning TEXT,
   timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (test_case_id) REFERENCES test_cases(id),
-  FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+  FOREIGN KEY (cohort_id) REFERENCES cohorts(id)
 );
 
 -- Conversation notes table (open coding)
 CREATE TABLE IF NOT EXISTS conversation_notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   conversation_id INTEGER NOT NULL,
+  cohort_id INTEGER,
   note TEXT NOT NULL,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+  FOREIGN KEY (cohort_id) REFERENCES cohorts(id)
 );
 
 -- Tags table (axial coding)
@@ -144,9 +188,11 @@ CREATE TABLE IF NOT EXISTS conversation_tags (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   conversation_id INTEGER NOT NULL,
   tag_id INTEGER NOT NULL,
+  cohort_id INTEGER,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (conversation_id) REFERENCES conversations(id),
   FOREIGN KEY (tag_id) REFERENCES tags(id),
+  FOREIGN KEY (cohort_id) REFERENCES cohorts(id),
   UNIQUE(conversation_id, tag_id)
 );
 
@@ -160,18 +206,25 @@ CREATE INDEX IF NOT EXISTS idx_availability_date ON availability_slots(date, ser
 `;
 
 // Initialize schema
-export function initSchema() {
-  db.exec(APP_DB_SCHEMA);
+export async function initSchema() {
+  const database = await getDb();
+  database.exec(APP_DB_SCHEMA);
+  saveDb();
 }
 
 // ===== TYPED INTERFACES =====
 
 export interface Student {
   id: number;
-  name: string;
-  email: string;
-  phone: string | null;
+  handle: string;
   created_at: string;
+}
+
+export interface Cohort {
+  id: number;
+  name: string;
+  created_at: string;
+  active: number;
 }
 
 export interface Appointment {
@@ -196,10 +249,12 @@ export interface Ticket {
 export interface Conversation {
   id: number;
   student_id: number;
+  cohort_id: number | null;
   channel: 'sms' | 'webchat';
   started_at: string;
   ended_at: string | null;
   status: 'active' | 'ended';
+  archived: number;
 }
 
 export interface Message {
@@ -246,6 +301,7 @@ export interface EvalResult {
   id: number;
   test_case_id: number;
   conversation_id: number;
+  cohort_id: number | null;
   code_eval_result: 'pass' | 'fail' | 'error';
   code_eval_details: string;
   llm_judge_result: 'pass' | 'fail' | null;
@@ -256,6 +312,7 @@ export interface EvalResult {
 export interface ConversationNote {
   id: number;
   conversation_id: number;
+  cohort_id: number | null;
   note: string;
   created_at: string;
 }
@@ -271,7 +328,18 @@ export interface ConversationTag {
   id: number;
   conversation_id: number;
   tag_id: number;
+  cohort_id: number | null;
   created_at: string;
 }
 
-export default db;
+// Save on process exit
+process.on('exit', () => {
+  saveDb();
+});
+
+process.on('SIGINT', () => {
+  saveDb();
+  process.exit(0);
+});
+
+export default { getDb, saveDb, initSchema };

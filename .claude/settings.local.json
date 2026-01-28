@@ -8,7 +8,10 @@
       "Bash(timeout 10 npm run dev:*)",
       "Bash(pnpm install:*)",
       "Bash(npx pnpm install:*)",
-      "Bash(npx pnpm:*)"
+      "Bash(npx pnpm:*)",
+      "Bash(sqlite3:*)",
+      "Bash(move:*)",
+      "Bash(ren:*)"
     ]
   }
 }

@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import initSqlJs, { Database } from 'sql.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -10,8 +10,42 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-// Create database connection
-const db = new Database(KB_DB_PATH);
+let db: Database | null = null;
+let SQL: any = null;
+
+async function initDB() {
+  if (db) return db;
+
+  // Initialize SQL.js
+  if (!SQL) {
+    SQL = await initSqlJs({
+      locateFile: (file) => path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', file),
+    });
+  }
+
+  // Load existing database or create new one
+  if (fs.existsSync(KB_DB_PATH)) {
+    const buffer = fs.readFileSync(KB_DB_PATH);
+    db = new SQL.Database(buffer);
+  } else {
+    db = new SQL.Database();
+  }
+
+  return db;
+}
+
+// Save database to disk
+export function saveDb() {
+  if (db) {
+    const data = db.export();
+    fs.writeFileSync(KB_DB_PATH, data);
+  }
+}
+
+// Get database instance
+export async function getDb(): Promise<Database> {
+  return await initDB();
+}
 
 // ===== SCHEMA =====
 
@@ -33,8 +67,10 @@ CREATE INDEX IF NOT EXISTS idx_kb_articles_category ON kb_articles(category);
 `;
 
 // Initialize schema
-export function initSchema() {
-  db.exec(KB_DB_SCHEMA);
+export async function initSchema() {
+  const database = await getDb();
+  database.exec(KB_DB_SCHEMA);
+  saveDb();
 }
 
 // ===== TYPED INTERFACES =====
@@ -55,8 +91,9 @@ export interface KBArticle {
  * Search knowledge base articles
  * Simple LIKE-based search across title and content
  */
-export function searchArticles(query: string, limit = 5): KBArticle[] {
-  const stmt = db.prepare(`
+export async function searchArticles(query: string, limit = 5): Promise<KBArticle[]> {
+  const database = await getDb();
+  const stmt = database.prepare(`
     SELECT * FROM kb_articles
     WHERE title LIKE ? OR content LIKE ?
     ORDER BY
@@ -72,23 +109,61 @@ export function searchArticles(query: string, limit = 5): KBArticle[] {
   const searchPattern = `%${query}%`;
   const titlePattern = `%${query}%`;
 
-  return stmt.all(searchPattern, searchPattern, titlePattern, searchPattern, limit) as KBArticle[];
+  stmt.bind([searchPattern, searchPattern, titlePattern, searchPattern, limit]);
+
+  const results: KBArticle[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    results.push(row as KBArticle);
+  }
+
+  stmt.free();
+  return results;
 }
 
 /**
  * Get articles by category
  */
-export function getArticlesByCategory(category: string): KBArticle[] {
-  const stmt = db.prepare('SELECT * FROM kb_articles WHERE category = ? ORDER BY created_at DESC');
-  return stmt.all(category) as KBArticle[];
+export async function getArticlesByCategory(category: string): Promise<KBArticle[]> {
+  const database = await getDb();
+  const stmt = database.prepare('SELECT * FROM kb_articles WHERE category = ? ORDER BY created_at DESC');
+  stmt.bind([category]);
+
+  const results: KBArticle[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    results.push(row as KBArticle);
+  }
+
+  stmt.free();
+  return results;
 }
 
 /**
  * Get all categories
  */
-export function getAllCategories(): string[] {
-  const stmt = db.prepare('SELECT DISTINCT category FROM kb_articles ORDER BY category');
-  return stmt.all().map((row: any) => row.category);
+export async function getAllCategories(): Promise<string[]> {
+  const database = await getDb();
+  const stmt = database.prepare('SELECT DISTINCT category FROM kb_articles ORDER BY category');
+
+  const results: string[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    results.push(row.category as string);
+  }
+
+  stmt.free();
+  return results;
 }
 
-export default db;
+// Save on process exit
+process.on('exit', () => {
+  saveDb();
+});
+
+process.on('SIGINT', () => {
+  saveDb();
+  process.exit(0);
+});
+
+export default { getDb, saveDb, initSchema };

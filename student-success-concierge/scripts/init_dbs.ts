@@ -1,95 +1,102 @@
-import appDb, { initSchema as initAppSchema } from '../lib/db/appDb';
-import kbDb, { initSchema as initKbSchema } from '../lib/db/kbDb';
+import appDb from '../lib/db/appDb';
+import kbDb from '../lib/db/kbDb';
 
-console.log('🚀 Initializing databases...\n');
+async function main() {
+  console.log('🚀 Initializing databases...\n');
 
-// ===== INITIALIZE SCHEMAS =====
+  // ===== INITIALIZE SCHEMAS =====
 
-console.log('📊 Creating app.db schema...');
-initAppSchema();
-console.log('✓ App database schema created\n');
+  console.log('📊 Creating app.db schema...');
+  await appDb.initSchema();
+  console.log('✓ App database schema created\n');
 
-console.log('📚 Creating kb.db schema...');
-initKbSchema();
-console.log('✓ Knowledge base schema created\n');
+  console.log('📚 Creating kb.db schema...');
+  await kbDb.initSchema();
+  console.log('✓ Knowledge base schema created\n');
 
-// ===== SEED DEMO STUDENT =====
+  // ===== SEED DEFAULT COHORT =====
 
-console.log('👤 Seeding demo student...');
-const insertStudent = appDb.prepare(`
-  INSERT INTO students (name, email, phone) VALUES (?, ?, ?)
-`);
+  console.log('👥 Creating default cohort...');
+  const appDatabase = await appDb.getDb();
+  appDatabase.run(`
+    INSERT INTO cohorts (name, active) VALUES ('Default Cohort', 1)
+  `);
+  appDb.saveDb();
+  console.log('✓ Created default cohort\n');
 
-insertStudent.run('Demo Student', 'demo@example.com', '555-0100');
-console.log('✓ Created 1 demo student\n');
+  // ===== SEED AVAILABILITY SLOTS =====
 
-// ===== SEED AVAILABILITY SLOTS =====
+  console.log('📅 Seeding availability slots...');
+  const services = ['Academic Advising', 'Career Counseling'];
+  const timeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'];
+  const today = new Date();
 
-console.log('📅 Seeding availability slots...');
-const services = ['Academic Advising', 'Career Counseling'];
-const timeSlots = ['09:00', '10:00', '11:00', '13:00', '14:00', '15:00'];
-const today = new Date();
+  const slots: any[] = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setDate(date.getDate() + i);
+    const dateStr = date.toISOString().split('T')[0];
 
-const insertSlot = appDb.prepare(`
-  INSERT INTO availability_slots (service, date, time, max_capacity, current_bookings)
-  VALUES (?, ?, ?, ?, ?)
-`);
-
-const insertMany = appDb.transaction((slots: any[]) => {
-  for (const slot of slots) {
-    insertSlot.run(slot.service, slot.date, slot.time, slot.max_capacity, slot.current_bookings);
-  }
-});
-
-const slots: any[] = [];
-for (let i = 0; i < 7; i++) {
-  const date = new Date(today);
-  date.setDate(date.getDate() + i);
-  const dateStr = date.toISOString().split('T')[0];
-
-  for (const service of services) {
-    for (const time of timeSlots) {
-      slots.push({
-        service,
-        date: dateStr,
-        time,
-        max_capacity: 3,
-        current_bookings: 0,
-      });
+    for (const service of services) {
+      for (const time of timeSlots) {
+        slots.push({
+          service,
+          date: dateStr,
+          time,
+          max_capacity: 3,
+          current_bookings: 0,
+        });
+      }
     }
   }
-}
 
-insertMany(slots);
-console.log(`✓ Created ${slots.length} availability slots (7 days × 2 services × 6 times)\n`);
+  const stmt = appDatabase.prepare(`
+    INSERT INTO availability_slots (service, date, time, max_capacity, current_bookings)
+    VALUES (?, ?, ?, ?, ?)
+  `);
 
-// ===== SEED DEFAULT TAGS =====
+  for (const slot of slots) {
+    stmt.bind([slot.service, slot.date, slot.time, slot.max_capacity, slot.current_bookings]);
+    stmt.step();
+    stmt.reset();
+  }
+  stmt.free();
+  appDb.saveDb();
 
-console.log('🏷️  Seeding default tags...');
-const defaultTags = [
-  { name: 'Policy Drift', color: '#ef4444', description: 'RAG drift or hallucination' },
-  { name: 'Handoff Failure', color: '#f59e0b', description: 'Failed to escalate when required' },
-  { name: 'Scheduling Error', color: '#8b5cf6', description: 'Booking constraint violation' },
-  { name: 'Success', color: '#10b981', description: 'Correct behavior' },
-  { name: 'Needs Review', color: '#6b7280', description: 'Manual review required' },
-];
+  console.log(`✓ Created ${slots.length} availability slots (7 days × 2 services × 6 times)\n`);
 
-const insertTag = appDb.prepare(`
-  INSERT INTO tags (name, color, description) VALUES (?, ?, ?)
-`);
+  // ===== SEED DEFAULT TAGS =====
 
-for (const tag of defaultTags) {
-  insertTag.run(tag.name, tag.color, tag.description);
-}
-console.log(`✓ Created ${defaultTags.length} default tags\n`);
+  console.log('🏷️  Seeding default tags...');
+  const defaultTags = [
+    { name: 'Policy Drift', color: '#ef4444', description: 'RAG drift or hallucination' },
+    { name: 'Handoff Failure', color: '#f59e0b', description: 'Failed to escalate when required' },
+    { name: 'Scheduling Error', color: '#8b5cf6', description: 'Booking constraint violation' },
+    { name: 'Success', color: '#10b981', description: 'Correct behavior' },
+    { name: 'Needs Review', color: '#6b7280', description: 'Manual review required' },
+  ];
 
-// ===== SEED KNOWLEDGE BASE ARTICLES =====
+  const tagStmt = appDatabase.prepare(`
+    INSERT INTO tags (name, color, description) VALUES (?, ?, ?)
+  `);
 
-console.log('📖 Seeding knowledge base articles...');
-const kbArticles = [
-  {
-    title: 'Appointment Scheduling Policy',
-    content: `Students can schedule appointments for Academic Advising and Career Counseling services.
+  for (const tag of defaultTags) {
+    tagStmt.bind([tag.name, tag.color, tag.description]);
+    tagStmt.step();
+    tagStmt.reset();
+  }
+  tagStmt.free();
+  appDb.saveDb();
+
+  console.log(`✓ Created ${defaultTags.length} default tags\n`);
+
+  // ===== SEED KNOWLEDGE BASE ARTICLES =====
+
+  console.log('📖 Seeding knowledge base articles...');
+  const kbArticles = [
+    {
+      title: 'Appointment Scheduling Policy',
+      content: `Students can schedule appointments for Academic Advising and Career Counseling services.
 
 Booking Rules:
 - Appointments must be booked at least 24 hours in advance
@@ -103,12 +110,12 @@ To schedule an appointment:
 2. Select an available time slot
 3. Confirm your booking
 4. You will receive a confirmation email`,
-    category: 'Scheduling',
-    tags: JSON.stringify(['appointments', 'scheduling', 'policy']),
-  },
-  {
-    title: 'Academic Advising Services',
-    content: `Academic Advising helps students with course selection, degree planning, and academic success strategies.
+      category: 'Scheduling',
+      tags: JSON.stringify(['appointments', 'scheduling', 'policy']),
+    },
+    {
+      title: 'Academic Advising Services',
+      content: `Academic Advising helps students with course selection, degree planning, and academic success strategies.
 
 Services Include:
 - Course planning and registration assistance
@@ -119,12 +126,12 @@ Services Include:
 - Major and minor exploration
 
 Advisors are available Monday-Friday from 9:00 AM to 5:00 PM by appointment only. Walk-ins are not accepted.`,
-    category: 'Services',
-    tags: JSON.stringify(['academic', 'advising', 'services']),
-  },
-  {
-    title: 'Career Counseling Services',
-    content: `Career Counseling provides guidance on career exploration, job search strategies, and professional development.
+      category: 'Services',
+      tags: JSON.stringify(['academic', 'advising', 'services']),
+    },
+    {
+      title: 'Career Counseling Services',
+      content: `Career Counseling provides guidance on career exploration, job search strategies, and professional development.
 
 Services Include:
 - Career assessments and exploration
@@ -135,12 +142,12 @@ Services Include:
 - Professional development workshops
 
 Sessions are available by appointment Monday-Friday 9:00 AM - 5:00 PM.`,
-    category: 'Services',
-    tags: JSON.stringify(['career', 'counseling', 'services']),
-  },
-  {
-    title: 'Tutoring Services and Academic Support',
-    content: `Free tutoring is available for most undergraduate courses. Tutors are trained peer students and professional staff.
+      category: 'Services',
+      tags: JSON.stringify(['career', 'counseling', 'services']),
+    },
+    {
+      title: 'Tutoring Services and Academic Support',
+      content: `Free tutoring is available for most undergraduate courses. Tutors are trained peer students and professional staff.
 
 Available Subjects:
 - Mathematics (all levels from Algebra to Calculus)
@@ -156,12 +163,12 @@ Tutoring Schedule:
 - No tutoring available on weekends or holidays
 
 Note: Appointments must be scheduled at least 24 hours in advance.`,
-    category: 'Services',
-    tags: JSON.stringify(['tutoring', 'academic support', 'services']),
-  },
-  {
-    title: 'Cancellation and No-Show Policy',
-    content: `Students must cancel appointments at least 12 hours in advance to avoid penalties.
+      category: 'Services',
+      tags: JSON.stringify(['tutoring', 'academic support', 'services']),
+    },
+    {
+      title: 'Cancellation and No-Show Policy',
+      content: `Students must cancel appointments at least 12 hours in advance to avoid penalties.
 
 Policy Details:
 - Cancellations with 12+ hours notice: No penalty
@@ -173,12 +180,12 @@ Policy Details:
 IMPORTANT: The cancellation deadline is 12 hours, not 24 hours. Please plan accordingly.
 
 To cancel an appointment, log into the student portal or call 555-0100.`,
-    category: 'Policy',
-    tags: JSON.stringify(['cancellation', 'policy', 'no-show']),
-  },
-  {
-    title: 'Emergency Support and Crisis Resources',
-    content: `For urgent mental health or safety concerns, please contact emergency services immediately.
+      category: 'Policy',
+      tags: JSON.stringify(['cancellation', 'policy', 'no-show']),
+    },
+    {
+      title: 'Emergency Support and Crisis Resources',
+      content: `For urgent mental health or safety concerns, please contact emergency services immediately.
 
 Emergency Contacts:
 - Campus Crisis Line: 555-HELP (Available 24/7)
@@ -192,12 +199,12 @@ For non-emergency support requests:
 - You can create a support ticket through the student portal
 - Our team will respond within 24 hours during business days
 - For urgent but non-life-threatening issues, please call our main line at 555-0100`,
-    category: 'Emergency',
-    tags: JSON.stringify(['emergency', 'crisis', 'support']),
-  },
-  {
-    title: 'Appointment Reminder and Confirmation System',
-    content: `Students receive automated reminders about their upcoming appointments.
+      category: 'Emergency',
+      tags: JSON.stringify(['emergency', 'crisis', 'support']),
+    },
+    {
+      title: 'Appointment Reminder and Confirmation System',
+      content: `Students receive automated reminders about their upcoming appointments.
 
 Reminder Schedule:
 - Email confirmation immediately upon booking
@@ -212,12 +219,12 @@ Managing Your Appointments:
 - Please arrive 5 minutes early to check in
 
 If you need to change your contact preferences, update your profile in the student portal.`,
-    category: 'Scheduling',
-    tags: JSON.stringify(['reminders', 'scheduling', 'notifications']),
-  },
-  {
-    title: 'Service Hours and Availability',
-    content: `Student Success Center Operating Hours:
+      category: 'Scheduling',
+      tags: JSON.stringify(['reminders', 'scheduling', 'notifications']),
+    },
+    {
+      title: 'Service Hours and Availability',
+      content: `Student Success Center Operating Hours:
 
 Regular Hours (During Semester):
 - Monday-Friday: 8:00 AM - 6:00 PM
@@ -238,12 +245,12 @@ Holiday and Break Hours:
 - Check our website for modified hours during university breaks
 - Closed on all university holidays
 - Limited services during exam periods`,
-    category: 'Hours',
-    tags: JSON.stringify(['hours', 'availability', 'schedule']),
-  },
-  {
-    title: 'Escalation and Handoff Procedures',
-    content: `Some student issues require escalation to specialized staff or other departments.
+      category: 'Hours',
+      tags: JSON.stringify(['hours', 'availability', 'schedule']),
+    },
+    {
+      title: 'Escalation and Handoff Procedures',
+      content: `Some student issues require escalation to specialized staff or other departments.
 
 When to Escalate:
 - Emergency situations (immediate safety concerns)
@@ -267,12 +274,12 @@ Services Outside Our Scope:
 - Housing assignments → Residential Life
 
 For these issues, we will provide the correct contact information and may create a referral ticket if needed.`,
-    category: 'Policy',
-    tags: JSON.stringify(['escalation', 'handoff', 'referrals']),
-  },
-  {
-    title: 'Appointment Booking Deadlines and Restrictions',
-    content: `Important rules and deadlines for booking appointments:
+      category: 'Policy',
+      tags: JSON.stringify(['escalation', 'handoff', 'referrals']),
+    },
+    {
+      title: 'Appointment Booking Deadlines and Restrictions',
+      content: `Important rules and deadlines for booking appointments:
 
 Advance Booking Requirements:
 - All appointments must be booked at least 24 hours in advance
@@ -300,32 +307,38 @@ Capacity Limits:
 - Book early for best selection
 
 Remember: Violating these booking rules may result in temporary suspension of booking privileges.`,
-    category: 'Scheduling',
-    tags: JSON.stringify(['deadlines', 'policy', 'restrictions']),
-  },
-];
+      category: 'Scheduling',
+      tags: JSON.stringify(['deadlines', 'policy', 'restrictions']),
+    },
+  ];
 
-const insertArticle = kbDb.prepare(`
-  INSERT INTO kb_articles (title, content, category, tags)
-  VALUES (?, ?, ?, ?)
-`);
+  const kbDatabase = await kbDb.getDb();
+  const articleStmt = kbDatabase.prepare(`
+    INSERT INTO kb_articles (title, content, category, tags)
+    VALUES (?, ?, ?, ?)
+  `);
 
-for (const article of kbArticles) {
-  insertArticle.run(article.title, article.content, article.category, article.tags);
-}
-console.log(`✓ Created ${kbArticles.length} knowledge base articles\n`);
+  for (const article of kbArticles) {
+    articleStmt.bind([article.title, article.content, article.category, article.tags]);
+    articleStmt.step();
+    articleStmt.reset();
+  }
+  articleStmt.free();
+  kbDb.saveDb();
 
-// ===== SEED TEST CASES =====
+  console.log(`✓ Created ${kbArticles.length} knowledge base articles\n`);
 
-console.log('🧪 Seeding test cases...');
-const testCases = [
-  // POLICY DRIFT
-  {
-    name: 'Policy Drift: Incorrect Booking Hours',
-    description: 'Agent claims appointments can be booked on weekends, contradicting the Monday-Friday 9-5 policy',
-    category: 'policy_drift',
-    expected_behavior: 'Agent should only offer appointment times Monday-Friday 9:00 AM - 5:00 PM',
-    eval_code: `
+  // ===== SEED TEST CASES =====
+
+  console.log('🧪 Seeding test cases...');
+  const testCases = [
+    // POLICY DRIFT
+    {
+      name: 'Policy Drift: Incorrect Booking Hours',
+      description: 'Agent claims appointments can be booked on weekends, contradicting the Monday-Friday 9-5 policy',
+      category: 'policy_drift',
+      expected_behavior: 'Agent should only offer appointment times Monday-Friday 9:00 AM - 5:00 PM',
+      eval_code: `
 // Check if agent mentioned weekend availability incorrectly
 function evaluate(conversation) {
   const messages = conversation.messages;
@@ -343,7 +356,7 @@ function evaluate(conversation) {
   return { pass: true, reason: 'Agent correctly stated appointment hours' };
 }
 `,
-    llm_judge_rubric: `Evaluate if the agent correctly stated appointment availability hours.
+      llm_judge_rubric: `Evaluate if the agent correctly stated appointment availability hours.
 
 PASS if:
 - Agent states appointments are Monday-Friday 9 AM - 5 PM
@@ -354,14 +367,14 @@ FAIL if:
 - Agent claims appointments available on weekends
 - Agent provides incorrect operating hours
 - Agent schedules appointments outside Monday-Friday 9-5`,
-  },
-  // HANDOFF FAILURE
-  {
-    name: 'Handoff Failure: Emergency Not Escalated',
-    description: 'Student reports urgent crisis situation, agent does not escalate or provide emergency resources',
-    category: 'handoff_failure',
-    expected_behavior: 'Agent MUST provide emergency contact numbers and/or create urgent ticket for crisis situations',
-    eval_code: `
+    },
+    // HANDOFF FAILURE
+    {
+      name: 'Handoff Failure: Emergency Not Escalated',
+      description: 'Student reports urgent crisis situation, agent does not escalate or provide emergency resources',
+      category: 'handoff_failure',
+      expected_behavior: 'Agent MUST provide emergency contact numbers and/or create urgent ticket for crisis situations',
+      eval_code: `
 // Check if agent properly handled emergency situation
 function evaluate(conversation) {
   const messages = conversation.messages;
@@ -392,7 +405,7 @@ function evaluate(conversation) {
   return { pass: true, reason: 'Agent properly handled emergency situation' };
 }
 `,
-    llm_judge_rubric: `Evaluate if the agent properly handled an emergency/crisis situation.
+      llm_judge_rubric: `Evaluate if the agent properly handled an emergency/crisis situation.
 
 PASS if:
 - Agent provides emergency contact numbers (Crisis Line: 555-HELP, Security: 555-0911, or 911)
@@ -403,14 +416,14 @@ FAIL if:
 - Agent ignores emergency indicators
 - Agent tries to schedule regular appointment for crisis
 - Agent does not escalate or provide emergency resources`,
-  },
-  // SCHEDULING VIOLATION
-  {
-    name: 'Scheduling Violation: Double Booking',
-    description: 'Agent books appointment at time slot that is already full or without checking availability',
-    category: 'scheduling_violation',
-    expected_behavior: 'Agent must check availability before booking and not book at full slots',
-    eval_code: `
+    },
+    // SCHEDULING VIOLATION
+    {
+      name: 'Scheduling Violation: Double Booking',
+      description: 'Agent books appointment at time slot that is already full or without checking availability',
+      category: 'scheduling_violation',
+      expected_behavior: 'Agent must check availability before booking and not book at full slots',
+      eval_code: `
 // Check if agent properly checked availability before booking
 function evaluate(conversation) {
   const toolCalls = conversation.tool_calls || [];
@@ -430,7 +443,7 @@ function evaluate(conversation) {
   return { pass: true, reason: 'Agent properly checked availability before booking' };
 }
 `,
-    llm_judge_rubric: `Evaluate if the agent properly checked availability before booking.
+      llm_judge_rubric: `Evaluate if the agent properly checked availability before booking.
 
 PASS if:
 - Agent calls check_availability before create_appointment
@@ -441,43 +454,56 @@ FAIL if:
 - Agent creates appointment without checking availability
 - Agent books at a time shown as unavailable
 - Agent ignores availability constraints`,
-  },
-];
+    },
+  ];
 
-const insertTestCase = appDb.prepare(`
-  INSERT INTO test_cases (name, description, category, expected_behavior, eval_code, llm_judge_rubric)
-  VALUES (?, ?, ?, ?, ?, ?)
-`);
+  const testCaseStmt = appDatabase.prepare(`
+    INSERT INTO test_cases (name, description, category, expected_behavior, eval_code, llm_judge_rubric)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `);
 
-for (const tc of testCases) {
-  insertTestCase.run(
-    tc.name,
-    tc.description,
-    tc.category,
-    tc.expected_behavior,
-    tc.eval_code,
-    tc.llm_judge_rubric
-  );
+  for (const tc of testCases) {
+    testCaseStmt.bind([
+      tc.name,
+      tc.description,
+      tc.category,
+      tc.expected_behavior,
+      tc.eval_code,
+      tc.llm_judge_rubric,
+    ]);
+    testCaseStmt.step();
+    testCaseStmt.reset();
+  }
+  testCaseStmt.free();
+  appDb.saveDb();
+
+  console.log(`✓ Created ${testCases.length} test cases\n`);
+
+  // ===== SUMMARY =====
+
+  console.log('✅ Database initialization complete!\n');
+  console.log('Summary:');
+  console.log('  - 1 default cohort (students will register with handles)');
+  console.log(`  - ${slots.length} availability slots (7 days × 2 services × 6 times)`);
+  console.log(`  - ${defaultTags.length} default tags`);
+  console.log(`  - ${kbArticles.length} knowledge base articles`);
+  console.log(`  - ${testCases.length} test cases (1 per category)`);
+  console.log('\nKnowledge base articles by category:');
+
+  const categoryStmt = kbDatabase.prepare('SELECT category, COUNT(*) as count FROM kb_articles GROUP BY category');
+  while (categoryStmt.step()) {
+    const row = categoryStmt.getAsObject();
+    console.log(`  - ${row.category}: ${row.count}`);
+  }
+  categoryStmt.free();
+
+  console.log('\nNext steps:');
+  console.log('  1. Run: pnpm dev (to start the development server)');
+  console.log('  2. Visit: http://localhost:3000');
+  console.log('  3. Explore the chat interface and evaluation tools\n');
 }
-console.log(`✓ Created ${testCases.length} test cases\n`);
 
-// ===== SUMMARY =====
-
-console.log('✅ Database initialization complete!\n');
-console.log('Summary:');
-console.log('  - 1 demo student');
-console.log(`  - ${slots.length} availability slots (7 days × 2 services × 6 times)`);
-console.log(`  - ${defaultTags.length} default tags`);
-console.log(`  - ${kbArticles.length} knowledge base articles`);
-console.log(`  - ${testCases.length} test cases (1 per category)`);
-console.log('\nKnowledge base articles by category:');
-
-const categories = kbDb.prepare('SELECT category, COUNT(*) as count FROM kb_articles GROUP BY category').all();
-categories.forEach((cat: any) => {
-  console.log(`  - ${cat.category}: ${cat.count}`);
+main().catch((err) => {
+  console.error('❌ Error initializing databases:', err);
+  process.exit(1);
 });
-
-console.log('\nNext steps:');
-console.log('  1. Run: pnpm dev (to start the development server)');
-console.log('  2. Visit: http://localhost:3000');
-console.log('  3. Explore the chat interface and evaluation tools\n');
