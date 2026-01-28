@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run init-db:*)",
+      "Bash(npm run seed-kb:*)",
+      "Bash(npm run seed-test-cases:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(pnpm install:*)",
+      "Bash(npx pnpm install:*)",
+      "Bash(npx pnpm:*)"
+    ]
+  }
+}
