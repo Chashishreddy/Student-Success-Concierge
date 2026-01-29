@@ -14,30 +14,12 @@ import {
   formatViolations,
   hasErrors,
 } from '@/lib/policyRules';
-import appDb from '@/lib/db/appDb';
 import type { TraceMessage, CreateAppointmentInput } from '@/lib/types';
+import { initTestDatabases } from './testUtils';
 
 // Initialize test database before all tests
 beforeAll(async () => {
-  await appDb.initSchema();
-
-  // Insert test student
-  const db = await appDb.getDb();
-  const studentStmt = db.prepare(
-    "INSERT INTO students (handle) VALUES ('test_student')"
-  );
-  studentStmt.step();
-  studentStmt.free();
-
-  // Insert test availability slot
-  const slotStmt = db.prepare(`
-    INSERT INTO availability_slots (service, date, time, available, max_capacity, current_bookings)
-    VALUES ('tutoring', '2026-02-15', '10:00', 1, 5, 0)
-  `);
-  slotStmt.step();
-  slotStmt.free();
-
-  appDb.saveDb();
+  await initTestDatabases();
 });
 
 describe('Handoff Detection', () => {

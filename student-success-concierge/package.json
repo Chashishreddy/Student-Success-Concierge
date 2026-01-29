@@ -7,6 +7,9 @@
     "build": "next build",
     "start": "next start",
     "init:db": "tsx scripts/init_dbs.ts",
+    "demo:trace": "tsx scripts/create_demo_trace.ts",
+    "seed:traces": "tsx scripts/seed_traces.ts",
+    "seed:learning": "tsx scripts/seed_learning_outcomes.ts",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run"

@@ -19,11 +19,20 @@ process.env.APP_DB_PATH = path.join(TEST_DATA_DIR, 'test-app.db');
 process.env.KB_DB_PATH = path.join(TEST_DATA_DIR, 'test-kb.db');
 
 // Clean up test databases before tests
-if (fs.existsSync(process.env.APP_DB_PATH)) {
-  fs.unlinkSync(process.env.APP_DB_PATH);
+try {
+  if (fs.existsSync(process.env.APP_DB_PATH)) {
+    fs.unlinkSync(process.env.APP_DB_PATH);
+  }
+} catch (err) {
+  // Ignore if file doesn't exist
 }
-if (fs.existsSync(process.env.KB_DB_PATH)) {
-  fs.unlinkSync(process.env.KB_DB_PATH);
+
+try {
+  if (fs.existsSync(process.env.KB_DB_PATH)) {
+    fs.unlinkSync(process.env.KB_DB_PATH);
+  }
+} catch (err) {
+  // Ignore if file doesn't exist
 }
 
 // Mock console methods to reduce noise in tests (optional)
