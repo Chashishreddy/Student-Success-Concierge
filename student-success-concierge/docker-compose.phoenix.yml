@@ -1,0 +1,64 @@
+# Student Success Concierge - Docker Compose with Phoenix
+# Advanced setup with Arize Phoenix for LLM observability
+
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persist database files
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      # Phoenix tracing endpoint
+      - PHOENIX_COLLECTOR_ENDPOINT=http://phoenix:6006/v1/traces
+      # Uncomment and set these for real LLM mode:
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      phoenix:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      # Phoenix UI
+      - "6006:6006"
+      # OTLP gRPC (optional)
+      - "4317:4317"
+    environment:
+      - PHOENIX_WORKING_DIR=/phoenix
+    volumes:
+      # Persist Phoenix data
+      - phoenix_data:/phoenix
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6006"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  phoenix_data:
+
+# Usage:
+#   docker-compose -f docker-compose.phoenix.yml up -d      # Start
+#   docker-compose -f docker-compose.phoenix.yml logs -f    # View logs
+#   docker-compose -f docker-compose.phoenix.yml down       # Stop
+#
+# URLs:
+#   App: http://localhost:3000
+#   Phoenix: http://localhost:6006

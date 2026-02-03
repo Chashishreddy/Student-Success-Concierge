@@ -12,6 +12,16 @@ import { getLLMClient, type LLMClient, type Message, type ToolDefinition } from 
 import { runTool } from '../tools';
 import { startTrace, logMessage, logToolCall } from '../tracing';
 import type { ToolCall as DbToolCall } from '@/lib/types';
+import {
+  initPhoenixTracing,
+  isPhoenixEnabled,
+  startConversationSpan,
+  startLLMSpan,
+  endLLMSpan,
+  startToolSpan,
+  endToolSpan,
+  endConversationSpan,
+} from '../tracing/phoenix';
 
 // ===== TOOL DEFINITIONS =====
 
@@ -268,12 +278,25 @@ export async function runOrchestrator(
     llmClient = getLLMClient(),
   } = config;
 
-  // Initialize trace
+  // Initialize Phoenix tracing (no-op if not configured)
+  initPhoenixTracing();
+
+  // Initialize local trace (source of truth for teaching UI)
   const traceId = await startTrace({
     caseId: caseId || null,
     studentId,
     cohortId: cohortId || null,
     channel,
+  });
+
+  // Start Phoenix conversation span (returns null if Phoenix not enabled)
+  const phoenixSpan = startConversationSpan({
+    localTraceId: traceId,
+    caseId,
+    cohortId,
+    studentId,
+    channel,
+    scenario: caseName || 'general',
   });
 
   // Log user message
@@ -308,12 +331,30 @@ export async function runOrchestrator(
   for (let round = 0; round < maxRounds; round++) {
     roundCount++;
 
-    // Call LLM
-    const llmResponse = await llmClient.call({
-      system: systemPrompt,
-      messages,
-      tools: TOOL_DEFINITIONS,
+    // Start Phoenix LLM span
+    const llmSpan = startLLMSpan(phoenixSpan, {
+      model: llmClient.getModelName?.() || 'unknown',
+      provider: llmClient.getProvider?.() || 'unknown',
+      inputMessages: messages,
     });
+
+    // Call LLM
+    let llmResponse;
+    try {
+      llmResponse = await llmClient.call({
+        system: systemPrompt,
+        messages,
+        tools: TOOL_DEFINITIONS,
+      });
+
+      // End LLM span on success
+      endLLMSpan(llmSpan, {
+        outputMessage: llmResponse.content || '',
+      });
+    } catch (error) {
+      endLLMSpan(llmSpan, { error: error as Error });
+      throw error;
+    }
 
     // If LLM returned text, it's the final response
     if (llmResponse.content && !llmResponse.tool_calls) {
@@ -332,13 +373,32 @@ export async function runOrchestrator(
           handoffCreated = true;
         }
 
-        // Run the tool
-        const toolResult = await runTool({
-          tool: toolCall.name as any,
-          input: toolCall.input,
+        // Start Phoenix tool span
+        const toolSpan = startToolSpan(phoenixSpan, {
+          toolName: toolCall.name,
+          toolDescription: TOOL_DEFINITIONS.find(t => t.name === toolCall.name)?.description,
+          toolParameters: toolCall.input,
         });
 
-        // Log tool call
+        // Run the tool
+        let toolResult;
+        try {
+          toolResult = await runTool({
+            tool: toolCall.name as any,
+            input: toolCall.input,
+          });
+
+          // End tool span with result
+          endToolSpan(toolSpan, {
+            output: toolResult,
+            rowCount: Array.isArray(toolResult.output) ? toolResult.output.length : undefined,
+          });
+        } catch (error) {
+          endToolSpan(toolSpan, { output: null, error: error as Error });
+          throw error;
+        }
+
+        // Log tool call to local trace
         await logToolCall(
           traceId,
           toolCall.name,
@@ -445,6 +505,12 @@ export async function runOrchestrator(
 
   // Log final assistant message
   await logMessage(traceId, 'assistant', finalResponse);
+
+  // End Phoenix conversation span
+  endConversationSpan(phoenixSpan, {
+    toolCallCount,
+    violations,
+  });
 
   return {
     traceId,

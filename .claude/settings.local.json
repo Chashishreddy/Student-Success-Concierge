@@ -15,7 +15,10 @@
       "Bash(npx tsx:*)",
       "Bash(npm run init:db:*)",
       "Bash(npm run dev:*)",
-      "Bash(npm run test:run:*)"
+      "Bash(npm run test:run:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

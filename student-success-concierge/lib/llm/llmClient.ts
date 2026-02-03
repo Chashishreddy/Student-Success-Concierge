@@ -53,6 +53,12 @@ export interface LLMClient {
     maxTokens?: number;
     temperature?: number;
   }): Promise<LLMResponse>;
+
+  /** Get the model name for tracing (optional) */
+  getModelName?(): string;
+
+  /** Get the provider name for tracing (optional) */
+  getProvider?(): string;
 }
 
 /**
@@ -61,6 +67,14 @@ export interface LLMClient {
  * Used for testing and when no API key is available
  */
 export class MockLLMClient implements LLMClient {
+  getModelName(): string {
+    return 'mock-model';
+  }
+
+  getProvider(): string {
+    return 'mock';
+  }
+
   async call(params: {
     system?: string;
     messages: Message[];

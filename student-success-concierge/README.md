@@ -234,6 +234,66 @@ export ANTHROPIC_API_KEY=sk-ant-...
 pnpm dev
 ```
 
+## Phoenix Tracing (Optional)
+
+For advanced observability and trace visualization, you can integrate with [Arize Phoenix](https://phoenix.arize.com/). Phoenix provides powerful LLM tracing, evaluation, and analysis capabilities.
+
+**Note:** Local database tracing remains the "source of truth" for the teaching UI. Phoenix is for advanced analysis views.
+
+### Running Phoenix Locally with Docker
+
+```bash
+# Start Phoenix server
+docker run -d \
+  --name phoenix \
+  -p 6006:6006 \
+  -p 4317:4317 \
+  arizephoenix/phoenix:latest
+
+# Phoenix UI will be available at http://localhost:6006
+```
+
+### Configuring the App for Phoenix
+
+Add to your `.env.local`:
+
+```bash
+# Phoenix endpoint (OTLP HTTP)
+PHOENIX_COLLECTOR_ENDPOINT=http://localhost:6006/v1/traces
+
+# Optional: API key if using Phoenix Cloud
+# PHOENIX_API_KEY=your_phoenix_api_key
+```
+
+### Verifying Traces in Phoenix
+
+1. Start Phoenix: `docker run -p 6006:6006 -p 4317:4317 arizephoenix/phoenix:latest`
+2. Configure your `.env.local` with `PHOENIX_COLLECTOR_ENDPOINT`
+3. Run the app: `pnpm dev`
+4. Chat with the assistant to generate traces
+5. Open Phoenix UI at http://localhost:6006
+6. View traces in the "Traces" tab
+
+### What Gets Traced
+
+When Phoenix is enabled, the following spans are created:
+
+- **Conversation Span** (root): Wraps the entire orchestration
+  - Attributes: `case_id`, `cohort_id`, `student_id`, `channel`, `scenario`, `local_trace_id`
+
+- **LLM Call Span** (child): Each call to the LLM
+  - Attributes: `model`, `provider`, `input_messages`, `output_message`
+
+- **Tool Call Span** (child): Each tool execution
+  - Attributes: `tool_name`, `tool_parameters`, `tool_output`, `row_count`
+
+### Stopping Phoenix
+
+```bash
+docker stop phoenix
+docker rm phoenix
+```
+
 ## Verifying Seed Data
 
 ### Check Student Data
