@@ -10,9 +10,10 @@ import appDb from '@/lib/db/appDb';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { traceId: string } }
+  { params }: { params: Promise<{ traceId: string }> }
 ) {
-  const traceId = parseInt(params.traceId);
+  const { traceId: traceIdStr } = await params;
+  const traceId = parseInt(traceIdStr);
 
   if (isNaN(traceId)) {
     return NextResponse.json({ error: 'Invalid trace ID' }, { status: 400 });
@@ -46,9 +47,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { traceId: string } }
+  { params }: { params: Promise<{ traceId: string }> }
 ) {
-  const traceId = parseInt(params.traceId);
+  const { traceId: traceIdStr } = await params;
+  const traceId = parseInt(traceIdStr);
 
   if (isNaN(traceId)) {
     return NextResponse.json({ error: 'Invalid trace ID' }, { status: 400 });

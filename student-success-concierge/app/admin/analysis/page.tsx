@@ -37,14 +37,18 @@ const TAG_LABELS: Record<string, string> = {
   scheduling_error: 'Scheduling Error',
 };
 
-const TAG_COLORS: Record<string, string> = {
-  formatting_error: 'bg-red-100 text-red-800 border-red-300',
-  policy_violation: 'bg-orange-100 text-orange-800 border-orange-300',
-  tool_misuse: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-  missed_handoff: 'bg-blue-100 text-blue-800 border-blue-300',
-  hallucination_or_drift: 'bg-purple-100 text-purple-800 border-purple-300',
-  scheduling_error: 'bg-pink-100 text-pink-800 border-pink-300',
+const TAG_STYLES: Record<string, { bg: string; text: string; border: string }> = {
+  formatting_error:     { bg: '#fee2e2', text: '#991b1b', border: '#fca5a5' },
+  policy_violation:     { bg: '#ffedd5', text: '#9a3412', border: '#fdba74' },
+  tool_misuse:          { bg: '#fef9c3', text: '#854d0e', border: '#fde047' },
+  missed_handoff:       { bg: '#dbeafe', text: '#1e40af', border: '#93c5fd' },
+  hallucination_or_drift: { bg: '#f3e8ff', text: '#6b21a8', border: '#d8b4fe' },
+  scheduling_error:     { bg: '#fce7f3', text: '#9d174d', border: '#f9a8d4' },
 };
+
+function getTagStyle(tag: string) {
+  return TAG_STYLES[tag] || { bg: '#f3f4f6', text: '#1f2937', border: '#d1d5db' };
+}
 
 export default function AnalysisPage() {
   const [data, setData] = useState<AnalysisData | null>(null);
@@ -115,6 +119,8 @@ export default function AnalysisPage() {
           <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
             <svg
               className="w-7 h-7 mr-3 text-blue-600"
+              width="28"
+              height="28"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -132,10 +138,11 @@ export default function AnalysisPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.overall.map((tagData) => {
               const percentage = maxCount > 0 ? (tagData.count / maxCount) * 100 : 0;
+              const s = getTagStyle(tagData.tag);
               return (
                 <div
                   key={tagData.tag}
-                  className={`rounded-lg p-4 border-2 ${TAG_COLORS[tagData.tag] || 'bg-gray-100 text-gray-800 border-gray-300'}`}
+                  style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border, borderWidth: 2, borderStyle: 'solid', borderRadius: 8, padding: 16 }}
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-semibold">
@@ -143,10 +150,9 @@ export default function AnalysisPage() {
                     </span>
                     <span className="text-2xl font-bold">{tagData.count}</span>
                   </div>
-                  <div className="w-full bg-white bg-opacity-50 rounded-full h-2">
+                  <div style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: 4, height: 8 }}>
                     <div
-                      className="bg-current h-full rounded-full transition-all duration-300"
-                      style={{ width: `${percentage}%` }}
+                      style={{ width: `${percentage}%`, backgroundColor: s.text, height: '100%', borderRadius: 4, transition: 'width 0.3s' }}
                     />
                   </div>
                 </div>
@@ -167,6 +173,8 @@ export default function AnalysisPage() {
           <h2 className="text-2xl font-bold text-gray-900 flex items-center">
             <svg
               className="w-7 h-7 mr-3 text-green-600"
+              width="28"
+              height="28"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -218,17 +226,20 @@ export default function AnalysisPage() {
                   <p className="text-gray-500 italic">No tags applied to traces in this case</p>
                 ) : (
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {caseData.tag_counts.map((tagData) => (
-                      <div
-                        key={tagData.tag}
-                        className={`rounded-lg p-3 border ${TAG_COLORS[tagData.tag] || 'bg-gray-100 text-gray-800 border-gray-300'}`}
-                      >
-                        <p className="text-xs font-medium mb-1">
-                          {TAG_LABELS[tagData.tag] || tagData.tag}
-                        </p>
-                        <p className="text-xl font-bold">{tagData.count}</p>
-                      </div>
-                    ))}
+                    {caseData.tag_counts.map((tagData) => {
+                      const s = getTagStyle(tagData.tag);
+                      return (
+                        <div
+                          key={tagData.tag}
+                          style={{ backgroundColor: s.bg, color: s.text, borderColor: s.border, borderWidth: 1, borderStyle: 'solid', borderRadius: 8, padding: 12 }}
+                        >
+                          <p className="text-xs font-medium mb-1">
+                            {TAG_LABELS[tagData.tag] || tagData.tag}
+                          </p>
+                          <p className="text-xl font-bold">{tagData.count}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

@@ -27,7 +27,7 @@ export default function Home() {
             <p className="text-gray-600 mb-4">
               View conversation history with full tracing: messages, tool calls, and outputs.
             </p>
-            <Link href="/conversations" className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            <Link href="/admin/traces" className="inline-block bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
               View History
             </Link>
           </div>
@@ -37,7 +37,7 @@ export default function Home() {
             <p className="text-gray-600 mb-4">
               Open coding (notes), axial coding (tags), and frequency analysis dashboard.
             </p>
-            <Link href="/teaching" className="inline-block bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
+            <Link href="/admin/analysis" className="inline-block bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">
               Analyze Patterns
             </Link>
           </div>
@@ -47,7 +47,7 @@ export default function Home() {
             <p className="text-gray-600 mb-4">
               Run code-based checks and LLM-as-judge evaluations with validation metrics.
             </p>
-            <Link href="/evaluations" className="inline-block bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">
+            <Link href="/admin/evals" className="inline-block bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700">
               Run Evals
             </Link>
           </div>
@@ -57,9 +57,8 @@ export default function Home() {
       <div className="bg-blue-50 border-l-4 border-blue-600 p-6 rounded">
         <h3 className="font-semibold mb-2">📚 Setup Instructions</h3>
         <ol className="list-decimal list-inside space-y-2 text-gray-700">
-          <li>Initialize databases: <code className="bg-gray-200 px-2 py-1 rounded">npm run init-db</code></li>
-          <li>Seed knowledge base: <code className="bg-gray-200 px-2 py-1 rounded">npm run seed-kb</code></li>
-          <li>Seed test cases: <code className="bg-gray-200 px-2 py-1 rounded">npm run seed-test-cases</code></li>
+          <li>Initialize databases & seed data: <code className="bg-gray-200 px-2 py-1 rounded">npm run init:db</code></li>
+          <li>Start the dev server: <code className="bg-gray-200 px-2 py-1 rounded">npm run dev</code></li>
           <li>Start exploring the chat interface and evaluation tools!</li>
         </ol>
         <p className="mt-4 text-sm text-gray-600">

@@ -11,6 +11,7 @@
     "reset:db": "rm -rf data/*.db && npm run init:db",
     "demo:trace": "tsx scripts/create_demo_trace.ts",
     "seed:traces": "tsx scripts/seed_traces.ts",
+    "seed:kb": "tsx scripts/seed_kb_articles.ts",
     "seed:learning": "tsx scripts/seed_learning_outcomes.ts",
     "run:evals": "tsx scripts/run_evals.ts",
     "test:labels": "tsx scripts/test_labels.ts",

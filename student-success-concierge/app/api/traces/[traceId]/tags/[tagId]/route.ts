@@ -9,10 +9,11 @@ import appDb from '@/lib/db/appDb';
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { traceId: string; tagId: string } }
+  { params }: { params: Promise<{ traceId: string; tagId: string }> }
 ) {
-  const traceId = parseInt(params.traceId);
-  const tagId = parseInt(params.tagId);
+  const { traceId: traceIdStr, tagId: tagIdStr } = await params;
+  const traceId = parseInt(traceIdStr);
+  const tagId = parseInt(tagIdStr);
 
   if (isNaN(traceId) || isNaN(tagId)) {
     return NextResponse.json(

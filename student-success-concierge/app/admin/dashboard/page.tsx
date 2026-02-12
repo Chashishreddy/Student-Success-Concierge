@@ -106,6 +106,8 @@ export default function DashboardPage() {
               <div className="bg-blue-100 p-4 rounded-full">
                 <svg
                   className="w-8 h-8 text-blue-600"
+                  width="32"
+                  height="32"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -132,6 +134,8 @@ export default function DashboardPage() {
               <div className="bg-green-100 p-4 rounded-full">
                 <svg
                   className="w-8 h-8 text-green-600"
+                  width="32"
+                  height="32"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -158,6 +162,8 @@ export default function DashboardPage() {
               <div className="bg-purple-100 p-4 rounded-full">
                 <svg
                   className="w-8 h-8 text-purple-600"
+                  width="32"
+                  height="32"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"

@@ -9,10 +9,11 @@ import appDb from '@/lib/db/appDb';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { caseId: string } }
+  { params }: { params: Promise<{ caseId: string }> }
 ) {
   try {
-    const caseId = parseInt(params.caseId);
+    const { caseId: caseIdStr } = await params;
+    const caseId = parseInt(caseIdStr);
 
     if (isNaN(caseId)) {
       return NextResponse.json(

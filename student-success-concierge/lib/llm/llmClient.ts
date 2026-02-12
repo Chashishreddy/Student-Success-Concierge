@@ -200,9 +200,17 @@ export class AnthropicLLMClient implements LLMClient {
   private apiKey: string;
   private model: string;
 
-  constructor(apiKey: string, model = 'claude-3-5-sonnet-20241022') {
+  constructor(apiKey: string, model = 'claude-sonnet-4-5-20250929') {
     this.apiKey = apiKey;
     this.model = model;
+  }
+
+  getModelName(): string {
+    return this.model;
+  }
+
+  getProvider(): string {
+    return 'anthropic';
   }
 
   async call(params: {
@@ -279,9 +287,17 @@ export class OpenAILLMClient implements LLMClient {
   private apiKey: string;
   private model: string;
 
-  constructor(apiKey: string, model = 'gpt-4-turbo-preview') {
+  constructor(apiKey: string, model = 'gpt-4o') {
     this.apiKey = apiKey;
     this.model = model;
+  }
+
+  getModelName(): string {
+    return this.model;
+  }
+
+  getProvider(): string {
+    return 'openai';
   }
 
   async call(params: {
@@ -333,7 +349,9 @@ export class OpenAILLMClient implements LLMClient {
     });
 
     if (!response.ok) {
-      throw new Error(`OpenAI API error: ${response.status} ${response.statusText}`);
+      const errorBody = await response.text();
+      console.error('OpenAI API error body:', errorBody);
+      throw new Error(`OpenAI API error: ${response.status} ${response.statusText} - ${errorBody}`);
     }
 
     const data = await response.json();
