@@ -1,2 +1,5 @@
 # Windows device name artifact
 nul
+
+# Claude local settings
+.claude/settings.local.json
